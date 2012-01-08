@@ -13,8 +13,15 @@ class CacheRegion[K, V <: Serializable](val name: String, val maxItems: Long, va
 
   val values: Map[K, SoftReference[CacheNode[K, V]]] = new HashMap[K, SoftReference[CacheNode[K, V]]]()
 
+  // If we have more than 1k items, clear a % of them.
+  // This is because making space is expensive (O(n))
+  def clearCount(): Int = items match {
+    case i if i > 1000 => (items * PCT_TO_EVICT).asInstanceOf[Int]
+    case _ => 1
+  }
+
   def makeSpace() = {
-    values.values.toList.filter(_ != Nil).map(_.get.get).sortWith(evictionStrategy).take((items * PCT_TO_EVICT).asInstanceOf[Int]).foreach(node => evict(node.key))
+    values.values.toList.filter(_ != Nil).map(_.get.get).sortWith(evictionStrategy).take(clearCount).foreach(node => evict(node.key))
   }
 
   def put(key: K,  value: V)(implicit m: Manifest[V]) = synchronized {
@@ -22,7 +29,13 @@ class CacheRegion[K, V <: Serializable](val name: String, val maxItems: Long, va
       makeSpace()
     }
     items += 1
-    values.put(key, new SoftReference(CacheNode(key, value)))
+    values.get(key) match {
+      case Some(ref) => ref.get match {
+        case Some(node) => node.update(value)
+        case None => values.put(key, new SoftReference(CacheNode(key, value)))
+      }
+      case None => values.put(key, new SoftReference(CacheNode(key, value)))
+    }
   }
 
   def get(key: K): Option[V] = values.get(key) match {
