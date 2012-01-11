@@ -1,5 +1,21 @@
-package net.uresk.simplecache
+import net.uresk.simplecache.{CacheNode, ExpensiveObject, CacheRegion}
 
-object CacheUtils {
-  def deepCopy[A](a: A)(implicit m: reflect.Manifest[A]): A = util.Marshal.load[A](util.Marshal.dump(a))
+def x(l: CacheNode[String], r: CacheNode[String]) = true
+
+val region: CacheRegion[String, ExpensiveObject] = new CacheRegion("first", 500, x)
+
+def output() = region.readThroughCache("spencer"){() =>
+  Some(new ExpensiveObject(500, "Spencer"))
 }
+
+println(output())
+println(output())
+println(output())
+println(output())
+println(output())
+println(output())
+println(output())
+println(output())
+println(output())
+
+println(region.size)
